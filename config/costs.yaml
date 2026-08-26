@@ -1,0 +1,53 @@
+# ===========================================================================
+# costs.yaml — the Indian transaction cost stack (Spec Sec 6.2)
+#
+# UNITS: every rate below is in BASIS POINTS (bps) of traded notional, except
+#        `gst_rate` (a fraction applied to other charges) and
+#        `brokerage_flat_inr` (rupees per order). 1 bp = 0.01% = 0.0001.
+#        Unit confusion here is a silent 100x error. Enforced by a unit test.
+#
+# !!! RATES NOT YET VERIFIED AGAINST CURRENT SEBI/NSE SCHEDULES !!!
+# `verified: false`. The values below are the spec's stated magnitudes. STT on
+# futures and exchange transaction charges have both changed in recent years.
+# Before any headline cost number is reported, these must be checked against
+# the live NSE/SEBI circulars and `rates_as_of` / `verified` updated.
+# ===========================================================================
+
+rates_as_of: null             # YYYY-MM-DD the rates were checked
+verified: false               # set true only after checking primary sources
+segment: equity_futures       # equity_futures | equity_cash
+
+# --- Explicit charges, per side unless stated ------------------------------
+brokerage_flat_inr: 20.0      # discount broker flat fee per order
+brokerage_bps: 3.0            # 0.03%; effective cost is min(flat, bps*notional)
+exchange_txn_bps: 0.19        # 0.0019% NSE F&O; cash segment is higher
+stt_sell_bps: 2.0             # 0.02%, SELL SIDE ONLY, futures
+sebi_bps: 0.01                # 0.0001%
+stamp_duty_buy_bps: 0.2       # 0.002%, BUY SIDE ONLY
+gst_rate: 0.18                # 18% on (brokerage + exchange txn charges)
+
+# --- Slippage (Spec Sec 6.2: "usually larger than all explicit costs
+# --- combined. Do not use one number for the whole universe.") -------------
+# Names are bucketed into quartiles by median daily turnover on the FORMATION
+# window only. Bucket 1 = most liquid.
+slippage_bps_per_side:
+  1: 2.0
+  2: 4.0
+  3: 7.0
+  4: 10.0
+n_liquidity_buckets: 4
+
+# --- Cost sensitivity sweep (Spec Sec 6.2 / Sec 15) ------------------------
+# Report the equity curve at each of these round-trip cost levels. The level
+# at which the strategy stops working is a headline number in its own right.
+scenario_bps_round_trip: [0, 10, 20, 40]
+
+# --- Short leg (Spec Sec 6.1) ----------------------------------------------
+# You CANNOT short NSE cash equity for delivery. Options: futures / intraday /
+# explicit caveat. Decision deferred to Day 10-12 but recorded here so the
+# assumption is never implicit.
+short_leg:
+  method: null                # single_stock_futures | intraday_only | cash_with_caveat
+  decided: false
+  futures_roll_cost_bps: 5.0  # applied per roll if method == single_stock_futures
+  margin_fraction: 0.20       # SPAN+exposure approximation, refine on Day 10

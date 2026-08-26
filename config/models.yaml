@@ -1,0 +1,95 @@
+# ===========================================================================
+# models.yaml — spread model, ML filter, LSTM ablation, validity tests
+# Spec Sec 3, 8, 9, 10.
+#
+# EVERY hyperparameter here is fitted or tuned on FORMATION windows only.
+# Nothing in this file may be selected by looking at trading-window results.
+# ===========================================================================
+
+# --- Kalman time-varying hedge ratio (Spec Sec 3) --------------------------
+kalman:
+  # Q = delta / (1 - delta). Larger delta => beta chases faster.
+  delta: 0.0001               # 1e-4, the spec's starting value
+  delta_grid: [0.000001, 0.00001, 0.0001, 0.001]   # log grid 1e-6 .. 1e-3
+  observation_noise_R: 0.001
+  # Sec 3: "the filter needs time to converge from its arbitrary initial
+  # state. Discard the first 60-100 observations." Non-negotiable.
+  warmup_obs: 100
+  beta_init: 0.0
+  P_init: 1.0
+  tune_on: formation_only     # asserted in code
+  report_sensitivity: true    # if it only works at one delta, that is an overfit
+
+# --- Static / rolling OLS baselines, for the head-to-head (Day 13-15) ------
+ols:
+  rolling_window_days: 252
+  # z-score window is tied to half-life (Sec 2.4), not picked by hand:
+  # window = clip(zscore_halflife_multiple * half_life, min, max)
+  zscore_halflife_multiple: 1.5
+  zscore_min_window: 20
+  zscore_max_window: 120
+  zscore_shift: 1             # THE .shift(1). Bug #1 in Sec 14. Must stay 1.
+
+# --- Label construction (Spec Sec 8.1) -------------------------------------
+labels:
+  # y = 1 if |z| reaches z_exit within H days of entry, else 0.
+  # H is derived from half-life, NOT a round number.
+  horizon_halflife_multiple: 2.0
+  horizon_min_days: 5
+  horizon_max_days: 120
+  # Labels may look forward (that is what a label is). Features may not.
+  # Asserted by tests/test_no_lookahead.py.
+
+# --- XGBoost signal filter (Spec Sec 8.3) ----------------------------------
+# Small dataset (a few thousand entry events) => shallow trees, heavy
+# regularisation. "Resist deep trees."
+xgboost:
+  n_estimators: 500
+  max_depth: 3
+  learning_rate: 0.03
+  subsample: 0.8
+  colsample_bytree: 0.8
+  min_child_weight: 10
+  reg_alpha: 0.1
+  reg_lambda: 5.0
+  early_stopping_rounds: 50
+  eval_metric: auc
+  tree_method: hist
+  n_jobs: -1
+filter:
+  split: temporal_only        # random splits are Bug #6. Never change this.
+  validation_fraction: 0.25   # last 25% of the FORMATION window, chronological
+  # The real evaluation is downstream Sharpe vs fraction filtered, not AUC.
+  threshold_grid: [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]
+  report_base_rate_first: true
+
+# --- LSTM ablation (Spec Sec 9) --------------------------------------------
+lstm:
+  enabled: false              # switched on at Day 23. Optional arm.
+  sequence_length: 30
+  channels: [spread, z, spread_vol, ret_a, ret_b, corr]   # 6 channels
+  hidden_size: 64
+  num_layers: 1
+  dropout: 0.2
+  batch_size: 64
+  max_epochs: 100
+  learning_rate: 0.001
+  early_stopping_patience: 10
+  # Sec 9: "normalise per-window, not globally." Global standardisation is
+  # the full-sample z-score bug wearing a different hat.
+  normalisation: per_window
+
+# --- Statistical validity (Spec Sec 10) ------------------------------------
+validity:
+  null_control:
+    n_runs: 500               # random pairings through the identical pipeline
+    preserve_sector_structure: false
+  deflated_sharpe:
+    # N = number of trials, read from the configuration log. Never hand-entered.
+    trials_from_config_log: true
+  bootstrap:
+    method: stationary        # stationary block bootstrap (arch)
+    n_boot: 2000
+    # block length ~ average holding period; resolved at runtime, not guessed
+    block_length: null
+    ci_level: 0.95

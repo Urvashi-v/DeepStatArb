@@ -1,0 +1,102 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "deepstatarb"
+version = "0.1.0"
+description = "Statistical arbitrage on cointegrated NSE pairs, with a survival analysis of cointegration itself."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+
+# ---------------------------------------------------------------------------
+# Core dependencies. Pinned with lower bounds only: this is research code that
+# must still install in two years, but upper-bounding numpy/pandas majors
+# protects against silent API breaks in the resampling / rolling paths.
+# ---------------------------------------------------------------------------
+dependencies = [
+    "numpy>=1.26,<3.0",
+    "pandas>=2.0,<3.0",
+    "scipy>=1.11",
+    "statsmodels>=0.14",      # coint(), adfuller(), OLS, multipletests  (Sec 2, 4)
+    "scikit-learn>=1.3",      # metrics, preprocessing                   (Sec 8)
+    "xgboost>=2.0",           # the signal filter                        (Sec 8)
+    "lifelines>=0.27",        # Kaplan-Meier, Cox PH                     (Sec 7)
+    "arch>=6.0",              # stationary block bootstrap               (Sec 10.3)
+    "pyyaml>=6.0",            # configuration
+    "pyarrow>=14.0",          # parquet cache for the price panel        (Sec 11)
+    "matplotlib>=3.7",        # figures
+    "yfinance>=0.2.40",       # NSE daily adjusted OHLCV                 (Sec 11.1)
+    "tqdm>=4.65",             # progress on the 19,900-pair screen
+]
+
+[project.optional-dependencies]
+# Deep learning is the ABLATION ARM ONLY (Sec 9). Kept optional so the core
+# result reproduces on a machine with no torch install. Spec: "Cut days 23-25
+# (the LSTM) first."
+dl = ["torch>=2.0"]
+
+# Dashboard is the LAST deliverable (Days 29-30) and consumes research output.
+app = ["streamlit>=1.30", "plotly>=5.18"]
+
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+    "ruff>=0.4",
+    "ipykernel>=6.25",
+]
+
+all = ["deepstatarb[dl,app,dev]"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["dsa*"]
+
+[tool.setuptools.package-data]
+dsa = ["py.typed"]
+
+# ---------------------------------------------------------------------------
+# pytest
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+    "--showlocals",
+]
+markers = [
+    "slow: takes more than ~5 seconds (deselect with '-m \"not slow\"')",
+    "network: requires live internet / a data feed (deselect with '-m \"not network\"')",
+    "leakage: a lookahead-bias guard. These must NEVER be skipped or xfailed.",
+    "synthetic: uses SYNTHETIC data for methodology validation only, never for results.",
+    "realdata: needs the downloaded NSE panel on disk; skipped on a fresh clone.",
+]
+filterwarnings = [
+    "error::DeprecationWarning:dsa.*",
+]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "NPY"]
+ignore = [
+    "E501",   # line length is handled by the formatter
+    "B008",   # function call in default arg — fine for frozen config defaults
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B011"]
+# NPY002 flags the legacy global numpy RNG in favour of Generator. Both files
+# below touch it ON PURPOSE: set_global_seed exists precisely to seed the
+# legacy global state that scikit-learn and pandas .sample() still consult,
+# and test_seeds.py verifies that it works. Library code uses spawn_rng.
+"src/dsa/seeds.py" = ["NPY002"]
+"tests/test_seeds.py" = ["NPY002"]

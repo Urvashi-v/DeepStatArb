@@ -1,0 +1,10 @@
+# ---------------------------------------------------------------------------
+# pyproject.toml is the single source of truth for dependencies.
+# This file exists so that `pip install -r requirements.txt` works for anyone
+# who expects it, without creating a second list that can drift out of sync.
+#
+#   Core only          :  pip install -r requirements.txt
+#   Core + dev tools   :  pip install -e ".[dev]"
+#   Everything         :  pip install -e ".[all]"
+# ---------------------------------------------------------------------------
+-e .[dev]

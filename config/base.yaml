@@ -1,0 +1,23 @@
+# ===========================================================================
+# base.yaml — project-wide settings
+#
+# WHY THIS FILE EXISTS: seed and logging are not owned by any one subsystem.
+# Duplicating them across universe/costs/backtest/models would let two copies
+# drift apart, which is a reproducibility bug that is very hard to see.
+# ===========================================================================
+
+project_name: deepstatarb
+
+# --- Reproducibility -------------------------------------------------------
+# One master seed. Every component derives its own independent stream from
+# this via SeedSequence spawning (see src/dsa/seeds.py). Do NOT change this
+# value casually: changing it invalidates comparability with earlier runs.
+seed: 20260823
+
+# --- Logging ---------------------------------------------------------------
+log_level: INFO            # DEBUG | INFO | WARNING | ERROR
+log_to_file: true          # rotating file handler under logs/
+
+# --- Figures ---------------------------------------------------------------
+figure_dpi: 150
+figure_format: png

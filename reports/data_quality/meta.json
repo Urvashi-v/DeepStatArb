@@ -1,0 +1,56 @@
+{
+  "generated_at": "2026-08-25T10:32:41+00:00",
+  "config_hash": "f7155d5c6dba",
+  "n_symbols": 167,
+  "n_sessions": 2857,
+  "padded_sessions": [
+    "2025-03-18",
+    "2026-01-15",
+    "2026-05-01",
+    "2026-05-28",
+    "2026-06-26"
+  ],
+  "thresholds": {
+    "session_quorum": 0.5,
+    "extreme_move_pct": 0.2,
+    "severe_move_pct": 0.5,
+    "corporate_action_window_days": 3,
+    "max_gap_sessions": 5,
+    "min_coverage_over_life": 0.95,
+    "max_zero_volume_run": 3,
+    "zero_volume_frac_warn": 0.02,
+    "max_stale_price_run": 5,
+    "phantom_date_max_tickers": 5,
+    "max_issues_listed_per_check": 25
+  },
+  "counts": [
+    {
+      "check": "zero_volume",
+      "FATAL": 0,
+      "WARN": 28,
+      "INFO": 927,
+      "total": 955
+    },
+    {
+      "check": "padded_session",
+      "FATAL": 0,
+      "WARN": 824,
+      "INFO": 0,
+      "total": 824
+    },
+    {
+      "check": "extreme_move",
+      "FATAL": 0,
+      "WARN": 59,
+      "INFO": 59,
+      "total": 118
+    },
+    {
+      "check": "stale_price",
+      "FATAL": 0,
+      "WARN": 30,
+      "INFO": 0,
+      "total": 30
+    }
+  ]
+}

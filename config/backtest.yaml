@@ -1,0 +1,64 @@
+# ===========================================================================
+# backtest.yaml — walk-forward scheme, trading rules, execution (Sec 4.2/5/6)
+#
+# EVERY threshold here is fixed BEFORE any result is looked at (Sec 5,
+# "The threshold-tuning trap"). Any sweep over these values must be logged as
+# a trial and paid for via the deflated Sharpe (Sec 10.2).
+# ===========================================================================
+
+# --- Walk-forward windows (Spec Sec 4.2) -----------------------------------
+# 36 formation / 6 trading / 6 step over ~10y gives ~14 non-overlapping
+# trading windows.
+formation_months: 36
+trading_months: 6
+step_months: 6
+
+# --- Execution timing (Spec Sec 6.3) ---------------------------------------
+# THE RULE: z is computed from the close of t; the position acts from t+1.
+# Enforced in exactly one place in the engine, and asserted in a test.
+execution:
+  signal_price: close
+  fill_price: open           # next bar's open
+  lag_bars: 1                # position = signal.shift(lag_bars)
+  allow_same_bar_fill: false # must stay false. Bug #4 in Sec 14.
+
+# --- Signal thresholds (Spec Sec 5). Conventional values, fixed a priori. ---
+signal:
+  z_entry: 2.0
+  z_exit: 0.5                # NOT 0.0 — exiting at 0 flatters the backtest
+  z_stop: 3.5
+  time_stop_halflives: 3.0   # give up after 3 x half-life
+  max_holding_days: 126      # hard cap regardless of half-life (~6 months)
+
+# --- Pair kill switch (Spec Sec 5) -----------------------------------------
+kill_switch:
+  enabled: true
+  rolling_coint_window: 252  # days used for the rolling cointegration test
+  pval_threshold: 0.10
+  consecutive_days: 20       # stop trading the pair after this many breaches
+
+# --- Pair screening (Spec Sec 4) -------------------------------------------
+screening:
+  fdr_alpha: 0.10            # Benjamini-Hochberg level
+  fdr_method: fdr_bh
+  raw_pval_report_level: 0.05   # reported for the funnel, NOT used to select
+  both_directions: true      # Sec 2.2 asymmetry: test A~B and B~A
+  pval_combine: max          # conservative: both directions must pass
+  same_sector_only: true     # the economic prior
+  report_unrestricted: true  # also report the unrestricted count for the funnel
+  min_half_life_days: 5      # Sec 2.4 tradeability filter
+  max_half_life_days: 60
+  min_overlapping_obs: 500   # both legs must have this much common history
+
+# --- Portfolio / sizing (Spec Sec 5.1) -------------------------------------
+portfolio:
+  initial_capital_inr: 10000000     # Rs. 1 crore notional book
+  sizing: dollar_neutral            # Rs.1 long A vs Rs.beta short B
+  max_weight_per_pair: 0.10         # no pair exceeds 10% of deployed capital
+  max_concurrent_pairs: 20
+  vol_scale: false                  # optional inverse-spread-vol scaling, Day 10+
+
+# --- Metrics ---------------------------------------------------------------
+metrics:
+  trading_days_per_year: 252
+  risk_free_annual: 0.0             # excess-return convention; state it in the report
