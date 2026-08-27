@@ -39,14 +39,10 @@ from dsa.data.store import Manifest, raw_reference_dir  # noqa: E402
 from dsa.data.universe import (  # noqa: E402
     Candidate,
     build_candidates,
-    finalise_universe,
-    render_universe_yaml,
     same_sector_pair_count,
     sector_counts,
-    write_universe_yaml,
 )
 from dsa.logging_utils import setup_logging  # noqa: E402
-from dsa.paths import reports_dir  # noqa: E402
 from dsa.provenance import capture_run_context  # noqa: E402
 
 CANDIDATES_JSON = "candidates.json"
@@ -154,65 +150,21 @@ def stage_panels(candidates: list[Candidate]) -> None:
 
 
 def stage_universe(candidates: list[Candidate]) -> None:
-    _banner("STAGE 4/4  universe --- filter and freeze")
-    cfg = load_config()
-    u = cfg.universe
+    """Delegate to the dedicated universe builder.
 
-    survivors, diagnostics = finalise_universe(
-        candidates,
-        min_history_years=u.min_history_years,
-        min_median_turnover_inr=u.min_median_turnover_inr,
-        max_missing_frac=u.max_missing_frac,
-        start=START,
-        end=END,
-    )
+    Universe construction moved out of this script on Day 4, when the
+    full-sample liquidity filter it used here was found to be lookahead. The
+    replacement evaluates eligibility point-in-time at every formation date and
+    lives in scripts/build_universe.py, so there is exactly one code path that
+    can produce a frozen universe.
+    """
+    _banner("STAGE 4/4  universe --- delegating to scripts/build_universe.py")
+    import subprocess
 
-    report = reports_dir() / "universe_selection.csv"
-    diagnostics.to_csv(report, index=False)
-
-    payload = json.loads((raw_reference_dir() / CANDIDATES_JSON).read_text(encoding="utf-8"))
-    provenance = payload["provenance"]
-
-    text = render_universe_yaml(
-        survivors,
-        provenance,
-        name=u.name,
-        version=u.version + 1,
-        start_date=START,
-        end_date=END,
-        target_size=u.target_size,
-        min_history_years=u.min_history_years,
-        min_median_turnover_inr=u.min_median_turnover_inr,
-        max_missing_frac=u.max_missing_frac,
-        mitigation=u.survivorship_bias.mitigation,
-        smoke_test_tickers=u.smoke_test_tickers,
-        n_candidates=len(candidates),
-    )
-    path = write_universe_yaml(text)
-
-    n = len(survivors)
-    counts = sector_counts(survivors)
-    print(f"\n  candidates                  : {len(candidates)}")
-    print(f"  passing all filters         : {n}")
-    print(f"  dropped                     : {len(candidates) - n}")
-
-    if "reason" in diagnostics.columns:
-        dropped = diagnostics[diagnostics.get("passes", False) != True]  # noqa: E712
-        if len(dropped):
-            print("\n  drop reasons:")
-            for reason, cnt in dropped["reason"].value_counts().head(12).items():
-                print(f"    {cnt:>4}  {str(reason)[:70]}")
-
-    print("\n  THE FUNNEL SO FAR (spec Sec 4.1)")
-    print(f"    unrestricted candidate pairs : {n * (n - 1) // 2:,}")
-    print(f"    same-sector candidate pairs  : {same_sector_pair_count(survivors):,}")
-    print("    -> cointegration screening is Day 4-6")
-    print(f"\n  sectors ({counts.size}):\n{counts.to_string()}")
-    print(f"\n  wrote {path}")
-    print(f"  wrote {report}")
-
-    reloaded = load_config()
-    print(f"\n  re-validated: {reloaded.summary()}")
+    script = Path(__file__).resolve().parent / "build_universe.py"
+    result = subprocess.run([sys.executable, str(script)], check=False)
+    if result.returncode != 0:
+        raise SystemExit(result.returncode)
 
 
 # ---------------------------------------------------------------------------

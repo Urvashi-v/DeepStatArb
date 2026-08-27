@@ -1,0 +1,106 @@
+# ===========================================================================
+# selection.yaml --- the RULES that produce the research universe
+#
+# WHY THIS FILE IS SEPARATE FROM universe.yaml
+#   selection.yaml  = INPUT.  Hand-written. The criteria.
+#   universe.yaml   = OUTPUT. Generated. The frozen list those criteria chose,
+#                     plus a copy of the criteria that produced it.
+#
+# Keeping them apart is what makes universe versioning meaningful: change a
+# rule here, regenerate, and you get a new universe version and a new universe
+# hash, with the rule that caused the change recorded alongside the result.
+# Editing thresholds inside a generated file would lose them on the next run.
+# ===========================================================================
+
+# --- Point-in-time eligibility ---------------------------------------------
+# EVERY criterion below is evaluated using ONLY data available on or before the
+# decision date. This is the fix for the Day-2 bug in which median turnover was
+# computed over the whole 2015-2026 sample and then used to admit a name to the
+# 2015 universe --- a stock that was thin until 2022 would pass on its
+# full-sample median and then get traded in 2015, which could not have been
+# known at the time.
+#
+# Both leaks that produced flatter the result in the same direction: they
+# preferentially admit names that TURNED OUT to be tradeable.
+
+# Trailing window over which liquidity is measured at each decision date.
+# 12 months is long enough to be stable across a results season and short
+# enough to reflect what the name is actually like now. It must never exceed
+# the formation window (36 months), or eligibility would consult data the
+# formation period itself has not seen.
+liquidity_lookback_months: 12
+
+# Median daily traded value over that trailing window, in rupees.
+# Rs 25 crore. Below this a pairs strategy cannot get in and out of a leg
+# without moving the price more than the spread it is trying to capture.
+min_median_turnover_inr: 250000000
+
+# Minimum listed history at the decision date, in years. Not measured over the
+# full sample: it is (decision_date - first_observed_bar), so a 2021 listing is
+# ineligible in 2018 and becomes eligible in 2026, exactly as it should.
+min_history_years: 3.0
+
+# Fraction of trailing-window sessions the name may be missing or untradeable.
+# Measured on TRADED bars, not merely supplied ones: a zero-volume halt is not
+# a session you could have traded, whatever the price column says.
+max_missing_frac: 0.02
+
+# Penny-stock guard. Tick size on a very low-priced NSE name is a large
+# fraction of its price, so the bid-ask spread swamps any statistical edge and
+# the z-score becomes an artefact of discreteness rather than of information.
+min_price_inr: 20.0
+
+# --- Universe size stability over time --------------------------------------
+# MEASURED ISSUE, not hypothetical. With a FIXED NOMINAL turnover floor, the
+# eligible count in this panel rises from 105 names (2018-01-01) to 199
+# (2026-01-01), because median daily turnover across the F&O universe grew from
+# about Rs 48cr to about Rs 158cr over the sample. By 2026 the Rs 25cr floor
+# excludes nobody; in 2018 it excluded 54 names.
+#
+# That is partly genuine liquidity growth and partly nominal (inflation and
+# market-cap growth). Either way a fixed rupee threshold is not scale-invariant
+# across eleven years, and it CONFOUNDS the era analysis (spec Sec 10 / Days
+# 26-28): early windows would trade half as many names as late ones, so any
+# apparent performance decay over time is entangled with the universe doubling
+# underneath it.
+#
+# Setting `max_eligible_per_date` to an integer switches to a RELATIVE rule:
+# keep the top N eligible names by trailing median turnover at each decision
+# date, ties broken alphabetically. The universe size then stays constant and
+# the era comparison is like-for-like.
+#
+# Left null (absolute rule) by default because it is the simpler thing to
+# describe and defend, and because the choice belongs to the researcher rather
+# than to this file. Whichever is chosen, it must be chosen ONCE, before
+# results are looked at.
+max_eligible_per_date: null
+
+# --- Size cap ---------------------------------------------------------------
+# Null means no cap: take every eligible name. A cap exists only to bound the
+# pair count if the eligible set ever grows unmanageable; when it binds, names
+# are ranked by trailing median turnover (which is itself point-in-time) and
+# ties broken alphabetically, so the choice is deterministic and replayable.
+max_size: null
+rank_by: median_turnover_inr        # median_turnover_inr | history_years
+tie_break: symbol                   # alphabetical, so the result never depends
+                                    # on dict or file ordering
+
+# --- Structural gates for the FROZEN list -----------------------------------
+# These decide who is even a candidate, and are not point-in-time because they
+# are properties of the data rather than of the market.
+require_sector: true                # no "Unknown" bucket: a catch-all sector
+                                    # would become the largest group and pair
+                                    # unrelated companies under the banner of
+                                    # an economic prior
+require_complete_download: true     # must have a manifest entry marked ok
+exclude_quality_fatal: true         # any FATAL data-quality finding excludes
+require_ever_eligible: true         # must clear the point-in-time bar on at
+                                    # least one decision date, or it can never
+                                    # be traded and only inflates the funnel
+
+# --- Decision dates ---------------------------------------------------------
+# Eligibility is evaluated at the END of each walk-forward formation window
+# (spec Sec 4.2). Those dates come from backtest.yaml --- formation_months,
+# trading_months, step_months --- and are derived, never listed here, so the
+# two can never drift apart.
+decision_dates_from: backtest_schedule

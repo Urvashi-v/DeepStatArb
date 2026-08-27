@@ -16,7 +16,7 @@ cointegrated pairs are still cointegrated *N* months after formation.
 
 ## Status
 
-**Day 3 of ~20 complete: data quality engine.**
+**Day 4 of ~20 complete: research universe.**
 
 The NSE price panel is downloaded and the universe is frozen. No *strategy*
 experiment has been run: every strategy results slot below is empty on purpose
@@ -28,7 +28,8 @@ appear are counts from an actual download, reproducible with one command.
 | Project foundation | 1 | **done** |
 | Data acquisition pipeline | 2 | **done** |
 | Data quality gates | 3 | **done** |
-| Cointegration screening + FDR | 4–6 | not started |
+| Research universe | 4 | **done** |
+| Cointegration screening + FDR | 5–6 | not started |
 | Spread, signal, first backtest | 7–9 | not started |
 | Walk-forward engine + Indian costs | 10–12 | not started |
 | Kalman time-varying hedge ratio | 13–15 | not started |
@@ -53,10 +54,21 @@ Measured (Day 2) — from `scripts/build_dataset.py`:
 ```
 NSE F&O individual securities                        208
   -> with an NSE sector classification               208   (100% coverage)
-  -> passing history / turnover / coverage filters   167   <- the frozen universe
+  -> with a complete download and no FATAL finding   203
+  -> eligible on >=1 formation date (frozen universe) 200
 
-candidate pairs, unrestricted                     13,861
-  -> restricted to same sector                     1,490   (9.3x reduction)
+candidate pairs, unrestricted                     19,900
+  -> restricted to same sector                     2,115   (89.4% removed)
+```
+
+**The frozen list is not the tradeable universe.** Eligibility is recomputed at
+each formation date from a trailing window, so it varies:
+
+```
+eligible names   2018-01-01   105    (52% of the frozen list)
+                 2021-01-01   125
+                 2026-01-01   199   (100%)
+                 range 105-199, median 150
 ```
 
 Not yet measured — needs the cointegration screen (Day 4–6):
@@ -67,14 +79,14 @@ Not yet measured — needs the cointegration screen (Day 4–6):
   -> tradeable half-life (5-60 days)       NOT YET MEASURED
 ```
 
-At 5% with 1,490 same-sector tests, roughly 75 pairs would pass by chance alone
+At 5% with 2,115 same-sector tests, roughly 106 pairs would pass by chance alone
 with no true cointegration anywhere. That is what the BH FDR control is for.
 
 The funnel matters more than any equity curve, because it is the difference
-between a discovery and a coincidence. Testing all 13,861 unrestricted pairs at
-the 5% level would yield roughly 693 "cointegrated" pairs in a world where none
-are. The same-sector prior removes 89% of the search space before a single test
-is run; BH FDR control and out-of-sample re-testing handle what is left.
+between a discovery and a coincidence. Testing all 19,900 unrestricted pairs at
+the 5% level would yield roughly 995 "cointegrated" pairs in a world where none
+are. The same-sector prior removes 89.4% of the search space before a single
+test is run; BH FDR control and out-of-sample re-testing handle what is left.
 
 ### Survival of cointegration — the headline
 
@@ -126,6 +138,10 @@ python scripts/build_dataset.py --stage all
 
 ```bash
 python scripts/run_quality_report.py --universe-only
+```
+
+```bash
+python scripts/build_universe.py
 ```
 
 Optional extras: `pip install -e ".[dl]"` for the LSTM ablation, `".[app]"` for
@@ -284,6 +300,53 @@ one inserts a zero return into nearly every series, which biases volatility
 down and makes every spread look flatter — and therefore more mean-reverting —
 than it is. Session inference now measures participation by *volume*, not by
 the presence of a price, which is what separates them out.
+
+---
+
+## The research universe
+
+Two levels, deliberately separated — this is what reconciles §11.4's "freeze the
+universe" with the rule against lookahead.
+
+| Level | What it is | Frozen? |
+|---|---|---|
+| **Research universe** | the 200 names ever considered | yes — versioned + hashed |
+| **Point-in-time eligibility** | who qualifies at formation date *T*, from data ≤ *T* | recomputed per window |
+
+The membership *list* is frozen so an experiment is reproducible; *eligibility
+at a date* is computed causally, and it is eligibility the walk-forward loop
+consults.
+
+`config/selection.yaml` holds the rules (input, hand-written).
+`config/universe.yaml` holds the frozen result (output, generated) plus a copy
+of the rules that produced it. Universe hash: `75a798c41d03`, version 2. The
+version bumps only when the hash changes, so it counts real changes rather than
+script runs.
+
+### The lookahead this replaced
+
+The Day-2 filter computed median turnover over the **entire** 2015–2026 sample
+and used it to admit a name to the 2015 universe. A stock thin until 2022
+passed on its full-sample median and would then have been traded in 2015. That
+is the universe-construction analogue of the full-sample z-score, and just as
+invisible: it makes the equity curve better, not worse. `finalise_universe` now
+raises `NotImplementedError` rather than being deleted quietly, so any surviving
+call site fails loudly.
+
+A test appends future data to the panel and requires every eligibility decision
+already made to come back bit-identical — on synthetic panels and on the real
+NSE panel.
+
+### A measured issue you should know about
+
+A **fixed nominal** turnover floor is not scale-invariant over eleven years.
+Median daily turnover across the F&O universe went ₹48cr (2018) → ₹158cr (2026),
+so the ₹25cr floor excluded 54 names in 2018 and **zero** in 2026. That
+confounds the era analysis (Days 26–28): early windows would trade half as many
+names as late ones. Setting `max_eligible_per_date` in `selection.yaml` switches
+to a relative rule (top *N* by trailing turnover); measured effect on universe
+size stability: sd 33.2 → 1.2. Left off by default — the choice is the
+researcher's, and must be made once, before results are looked at.
 
 ---
 

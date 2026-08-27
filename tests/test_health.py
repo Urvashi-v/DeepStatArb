@@ -298,6 +298,7 @@ GENERATED_ARTIFACTS = {
     "runs",  # provenance JSON, written by dsa.provenance
     "universe_selection.csv",  # Day 2, scripts/build_dataset.py --stage universe
     "data_quality",  # Day 3, scripts/run_quality_report.py
+    "universe",  # Day 4, scripts/build_universe.py
 }
 
 

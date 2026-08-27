@@ -42,10 +42,8 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
-from pathlib import Path
 
 import pandas as pd
-import yaml
 
 from dsa.data.sources import (
     NSE_FO_LOTS_URL,
@@ -55,14 +53,13 @@ from dsa.data.sources import (
 )
 from dsa.data.store import raw_reference_dir
 from dsa.logging_utils import get_logger
-from dsa.paths import config_dir
 
 __all__ = [
     "Candidate",
     "build_candidates",
-    "finalise_universe",
-    "render_universe_yaml",
     "candidate_symbols",
+    "sector_counts",
+    "same_sector_pair_count",
 ]
 
 _log = get_logger(__name__)
@@ -147,217 +144,27 @@ def same_sector_pair_count(candidates: Sequence[Candidate]) -> int:
     return int((counts * (counts - 1) // 2).sum())
 
 
-def finalise_universe(
-    candidates: Sequence[Candidate],
-    *,
-    min_history_years: float,
-    min_median_turnover_inr: float,
-    max_missing_frac: float,
-    start: str,
-    end: str,
-) -> tuple[list[Candidate], pd.DataFrame]:
-    """Apply history/liquidity/coverage filters using the clean panels.
+def finalise_universe(*args, **kwargs):  # pragma: no cover - removed on purpose
+    """REMOVED. This computed liquidity over the FULL sample and then declared a
+    name eligible for that whole sample --- so a stock that was thin until 2022
+    passed on its full-sample median and would have been traded in 2015.
 
-    Returns the surviving candidates and a per-symbol diagnostic table, so the
-    funnel can report *why* each name was dropped rather than only how many.
+    Replaced by :mod:`dsa.universe.selection`, which evaluates liquidity and
+    history from a trailing window ending at each decision date.
+
+    It raises rather than being deleted silently, so any surviving call site
+    fails loudly instead of quietly reintroducing the leak.
     """
-    from dsa.data.clean import load_panel
-
-    close = load_panel("close")
-    turnover = load_panel("turnover")
-
-    window = close.loc[pd.Timestamp(start) : pd.Timestamp(end)]
-    n_sessions = len(window)
-    if n_sessions == 0:
-        raise ValueError(f"clean panel has no rows between {start} and {end}")
-
-    rows = []
-    for cand in candidates:
-        s = cand.symbol
-        if s not in close.columns:
-            rows.append(
-                dict(symbol=s, sector=cand.sector, present=False, reason="not in clean panel")
-            )
-            continue
-
-        series = window[s]
-        observed = series.notna()
-        n_obs = int(observed.sum())
-        if n_obs == 0:
-            rows.append(dict(symbol=s, sector=cand.sector, present=True, n_obs=0, reason="no data"))
-            continue
-
-        first, last = series[observed].index.min(), series[observed].index.max()
-        history_years = (last - first).days / 365.25
-        # Missingness measured over the name's own listed life, not the whole
-        # panel: a 2019 listing is not "60% missing", it is younger.
-        span = observed.loc[first:last]
-        missing_frac = float(1.0 - span.sum() / max(len(span), 1))
-        med_turnover = float(turnover.loc[first:last, s].median(skipna=True))
-
-        reasons = []
-        if history_years < min_history_years:
-            reasons.append(f"history {history_years:.1f}y < {min_history_years}y")
-        if med_turnover < min_median_turnover_inr:
-            reasons.append(f"turnover {med_turnover/1e7:.1f}cr < {min_median_turnover_inr/1e7:.1f}cr")
-        if missing_frac > max_missing_frac:
-            reasons.append(f"missing {missing_frac:.1%} > {max_missing_frac:.1%}")
-
-        rows.append(
-            dict(
-                symbol=s,
-                sector=cand.sector,
-                present=True,
-                n_obs=n_obs,
-                first=str(first.date()),
-                last=str(last.date()),
-                history_years=round(history_years, 2),
-                median_turnover_inr=med_turnover,
-                missing_frac=round(missing_frac, 4),
-                passes=not reasons,
-                reason="; ".join(reasons) if reasons else "",
-            )
-        )
-
-    diagnostics = pd.DataFrame(rows)
-    passing = set(diagnostics.loc[diagnostics.get("passes", False) == True, "symbol"])  # noqa: E712
-    survivors = [c for c in candidates if c.symbol in passing]
-
-    _log.info(
-        "universe filter: %d candidates -> %d survivors (%d dropped)",
-        len(candidates),
-        len(survivors),
-        len(candidates) - len(survivors),
-    )
-    return survivors, diagnostics
-
-
-# ---------------------------------------------------------------------------
-# writing config/universe.yaml
-# ---------------------------------------------------------------------------
-
-_TEMPLATE = """\
-# ===========================================================================
-# universe.yaml --- the frozen, versioned trading universe
-#
-# !!! GENERATED FILE --- do not hand-edit the ticker list !!!
-# Regenerate with:  python scripts/build_dataset.py --stage all
-#
-# Spec Sec 11.4: "Freeze this list and version it --- a universe that changes
-# as you iterate is a silent source of overfitting."
-#
-# PROVENANCE
-#   generated_at : {generated_at}
-#   sources      : {source_urls}
-#   funnel       : {n_fo} F&O securities
-#                  -> {n_candidates} with an NSE sector classification
-#                  -> {n_final} passing history / turnover / coverage filters
-#   pair counts  : {n_pairs_all:,} unrestricted, {n_pairs_sector:,} same-sector
-# ===========================================================================
-
-name: {name}
-version: {version}
-frozen: {frozen}
-as_of: "{as_of}"
-
-# --- Data window -----------------------------------------------------------
-start_date: "{start_date}"
-end_date: "{end_date}"
-
-# --- Source ----------------------------------------------------------------
-source: yfinance
-ticker_suffix: "{suffix}"        # tickers below already carry it
-price_field: adj_close         # Spec Sec 11.2: non-negotiable
-benchmark: "^NSEI"             # NIFTY 50
-vix_symbol: "^INDIAVIX"        # ML filter market-context feature (Sec 8.2)
-
-# --- Inclusion filters actually applied ------------------------------------
-target_size: {target_size}
-min_history_years: {min_history_years}
-min_median_turnover_inr: {min_median_turnover_inr}
-max_missing_frac: {max_missing_frac}
-
-# --- Known bias, stated up front (Spec Sec 11.3) ---------------------------
-# The F&O list above is TODAY's list. Backtesting it to {start_year} keeps only
-# names that survived and stayed derivative-eligible. Direction: optimistic.
-survivorship_bias:
-  acknowledged: true
-  direction: optimistic
-  mitigation: "{mitigation}"
-
-# --- Connectivity smoke test ------------------------------------------------
-smoke_test_tickers:
-{smoke_block}
-# --- THE FROZEN LIST ({n_final} names, {n_sectors} sectors) ---
-tickers:
-{tickers_block}
-sectors:
-{sectors_block}"""
-
-
-def render_universe_yaml(
-    survivors: Sequence[Candidate],
-    provenance: dict[str, object],
-    *,
-    name: str,
-    version: int,
-    start_date: str,
-    end_date: str,
-    target_size: int,
-    min_history_years: float,
-    min_median_turnover_inr: float,
-    max_missing_frac: float,
-    mitigation: str,
-    smoke_test_tickers: Sequence[str],
-    n_candidates: int,
-) -> str:
-    """Render the frozen universe as YAML text, with provenance in the header."""
-    ordered = sorted(survivors, key=lambda c: c.symbol)
-    n = len(ordered)
-    counts = sector_counts(ordered)
-
-    tickers_block = "".join(f'  - "{c.symbol}"\n' for c in ordered)
-    sectors_block = "".join(f'  "{c.symbol}": "{c.sector}"\n' for c in ordered)
-    smoke_block = "".join(f'  - "{s}"\n' for s in smoke_test_tickers)
-
-    return _TEMPLATE.format(
-        generated_at=provenance.get("fetched_at", date.today().isoformat()),
-        source_urls=", ".join(provenance.get("source_urls", [])),  # type: ignore[arg-type]
-        n_fo=provenance.get("n_fo_symbols", "?"),
-        n_candidates=n_candidates,
-        n_final=n,
-        n_sectors=int(counts.size),
-        n_pairs_all=n * (n - 1) // 2,
-        n_pairs_sector=same_sector_pair_count(ordered),
-        name=name,
-        version=version,
-        frozen="true",
-        as_of=provenance.get("fetched_at", date.today().isoformat()),
-        start_date=start_date,
-        end_date=end_date,
-        start_year=start_date[:4],
-        suffix=YF_SUFFIX,
-        target_size=target_size,
-        min_history_years=min_history_years,
-        min_median_turnover_inr=int(min_median_turnover_inr),
-        max_missing_frac=max_missing_frac,
-        mitigation=mitigation,
-        smoke_block=smoke_block,
-        tickers_block=tickers_block,
-        sectors_block=sectors_block,
+    raise NotImplementedError(
+        "finalise_universe used full-sample liquidity to decide membership for the whole "
+        "sample, which is lookahead. Use dsa.universe.select_universe, which evaluates "
+        "eligibility point-in-time at each formation date. See scripts/build_universe.py."
     )
 
 
-def write_universe_yaml(text: str, path: Path | None = None) -> Path:
-    """Write and immediately re-validate through the config loader.
-
-    Writing a config the loader then rejects would leave the project unable to
-    start, so the round-trip is checked here rather than discovered later.
-    """
-    target = path or (config_dir() / "universe.yaml")
-    parsed = yaml.safe_load(text)
-    if not isinstance(parsed, dict) or "tickers" not in parsed:
-        raise ValueError("rendered universe.yaml is not a mapping with a `tickers` key")
-    target.write_text(text, encoding="utf-8")
-    _log.info("wrote %s (%d tickers)", target, len(parsed["tickers"]))
-    return target
+# ---------------------------------------------------------------------------
+# NOTE: universe freezing, versioning, hashing and YAML rendering now live in
+# dsa.universe.freeze. They were moved out of the data layer because they are
+# research decisions (which names, on what criteria, identified how) rather
+# than data-acquisition concerns.
+# ---------------------------------------------------------------------------

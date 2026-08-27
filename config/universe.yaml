@@ -1,25 +1,40 @@
 # ===========================================================================
-# universe.yaml --- the frozen, versioned trading universe
+# universe.yaml --- the FROZEN research universe
 #
-# !!! GENERATED FILE --- do not hand-edit the ticker list !!!
-# Regenerate with:  python scripts/build_dataset.py --stage all
+# !!! GENERATED FILE --- do not hand-edit !!!
+# Regenerate with:  python scripts/build_universe.py
+#
+# This file is OUTPUT. The rules that produced it are hand-written in
+# config/selection.yaml; a copy of them is recorded below so the list and the
+# criteria that chose it always travel together.
 #
 # Spec Sec 11.4: "Freeze this list and version it --- a universe that changes
 # as you iterate is a silent source of overfitting."
 #
-# PROVENANCE
-#   generated_at : 2026-08-24
-#   sources      : https://nsearchives.nseindia.com/content/fo/fo_mktlots.csv, https://nsearchives.nseindia.com/content/indices/ind_nifty500list.csv
-#   funnel       : 208 F&O securities
-#                  -> 208 with an NSE sector classification
-#                  -> 167 passing history / turnover / coverage filters
-#   pair counts  : 13,861 unrestricted, 1,490 same-sector
+# IDENTITY
+#   universe hash : 75a798c41d03
+#   version       : 2   (increments only when the hash changes)
+#   generated     : 2026-08-26
+#
+# HOW THIS LIST WAS BUILT
+#   sources   : https://nsearchives.nseindia.com/content/fo/fo_mktlots.csv, https://nsearchives.nseindia.com/content/indices/ind_nifty500list.csv
+#   funnel    : 203 candidates with price data
+#               -> 200 in the frozen universe
+#   pairs     : 19,900 unrestricted, 2,115 same-sector
+#   decisions : eligibility evaluated at 17 formation dates
+#               (2018-01-01 .. 2026-01-01)
+#
+# LOOKAHEAD
+#   Membership in THIS list is frozen for reproducibility. It is NOT a claim
+#   that every name was tradeable throughout the sample. Liquidity and history
+#   are re-evaluated at each formation date using only data available then;
+#   see reports/universe/eligibility.csv and dsa.universe.selection.
 # ===========================================================================
 
 name: nse_fno_liquid
-version: 1
+version: 2
 frozen: true
-as_of: "2026-08-24"
+as_of: "2026-01-01"
 
 # --- Data window -----------------------------------------------------------
 start_date: "2015-01-01"
@@ -27,20 +42,22 @@ end_date: "2026-08-01"
 
 # --- Source ----------------------------------------------------------------
 source: yfinance
-ticker_suffix: ".NS"        # tickers below already carry it
+ticker_suffix: ".NS"           # tickers below already carry it
 price_field: adj_close         # Spec Sec 11.2: non-negotiable
 benchmark: "^NSEI"             # NIFTY 50
 vix_symbol: "^INDIAVIX"        # ML filter market-context feature (Sec 8.2)
 
-# --- Inclusion filters actually applied ------------------------------------
-target_size: 180
-min_history_years: 5
+# --- Criteria that produced this list (copied from selection.yaml) ---------
+# Recorded, not read. selection.yaml is authoritative.
+target_size: null
+min_history_years: 3.0
 min_median_turnover_inr: 250000000
 max_missing_frac: 0.02
 
 # --- Known bias, stated up front (Spec Sec 11.3) ---------------------------
-# The F&O list above is TODAY's list. Backtesting it to 2015 keeps only
+# The F&O list used is TODAY's list. Backtesting it to 2015 keeps only
 # names that survived and stayed derivative-eligible. Direction: optimistic.
+# Point-in-time F&O membership is not available free.
 survivorship_bias:
   acknowledged: true
   direction: optimistic
@@ -55,8 +72,10 @@ smoke_test_tickers:
   - "ICICIBANK.NS"
   - "SBIN.NS"
 
-# --- THE FROZEN LIST (167 names, 18 sectors) ---
+# --- THE FROZEN LIST (200 names, 18 sectors) ---
 tickers:
+  - "360ONE.NS"
+  - "ABB.NS"
   - "ABCAPITAL.NS"
   - "ADANIENSOL.NS"
   - "ADANIENT.NS"
@@ -64,16 +83,20 @@ tickers:
   - "ADANIPORTS.NS"
   - "ADANIPOWER.NS"
   - "ALKEM.NS"
+  - "AMBER.NS"
   - "AMBUJACEM.NS"
   - "ANGELONE.NS"
+  - "APLAPOLLO.NS"
   - "APOLLOHOSP.NS"
   - "ASHOKLEY.NS"
   - "ASIANPAINT.NS"
+  - "ASTRAL.NS"
   - "AUBANK.NS"
   - "AUROPHARMA.NS"
   - "AXISBANK.NS"
   - "BAJAJ-AUTO.NS"
   - "BAJAJFINSV.NS"
+  - "BAJAJHLDNG.NS"
   - "BAJFINANCE.NS"
   - "BANDHANBNK.NS"
   - "BANKBARODA.NS"
@@ -84,6 +107,7 @@ tickers:
   - "BHARTIARTL.NS"
   - "BHEL.NS"
   - "BIOCON.NS"
+  - "BLUESTARCO.NS"
   - "BOSCHLTD.NS"
   - "BPCL.NS"
   - "BRITANNIA.NS"
@@ -95,6 +119,7 @@ tickers:
   - "CHOLAFIN.NS"
   - "CIPLA.NS"
   - "COALINDIA.NS"
+  - "COCHINSHIP.NS"
   - "COFORGE.NS"
   - "COLPAL.NS"
   - "CONCOR.NS"
@@ -102,6 +127,7 @@ tickers:
   - "CUMMINSIND.NS"
   - "DABUR.NS"
   - "DALBHARAT.NS"
+  - "DELHIVERY.NS"
   - "DIVISLAB.NS"
   - "DIXON.NS"
   - "DLF.NS"
@@ -110,13 +136,16 @@ tickers:
   - "EICHERMOT.NS"
   - "ETERNAL.NS"
   - "FEDERALBNK.NS"
+  - "FORCEMOT.NS"
   - "FORTIS.NS"
   - "GAIL.NS"
   - "GLENMARK.NS"
   - "GMRAIRPORT.NS"
+  - "GODFRYPHLP.NS"
   - "GODREJCP.NS"
   - "GODREJPROP.NS"
   - "GRASIM.NS"
+  - "GVT&D.NS"
   - "HAL.NS"
   - "HAVELLS.NS"
   - "HCLTECH.NS"
@@ -140,6 +169,7 @@ tickers:
   - "INDUSINDBK.NS"
   - "INDUSTOWER.NS"
   - "INFY.NS"
+  - "INOXWIND.NS"
   - "IOC.NS"
   - "IRFC.NS"
   - "ITC.NS"
@@ -148,10 +178,14 @@ tickers:
   - "JSWSTEEL.NS"
   - "JUBLFOOD.NS"
   - "KALYANKJIL.NS"
+  - "KAYNES.NS"
+  - "KEI.NS"
+  - "KFINTECH.NS"
   - "KOTAKBANK.NS"
   - "KPITTECH.NS"
   - "LAURUSLABS.NS"
   - "LICHSGFIN.NS"
+  - "LICI.NS"
   - "LODHA.NS"
   - "LT.NS"
   - "LTF.NS"
@@ -166,6 +200,7 @@ tickers:
   - "MCX.NS"
   - "MFSL.NS"
   - "MOTHERSON.NS"
+  - "MOTILALOFS.NS"
   - "MPHASIS.NS"
   - "MUTHOOTFIN.NS"
   - "NAM-INDIA.NS"
@@ -173,20 +208,32 @@ tickers:
   - "NAUKRI.NS"
   - "NBCC.NS"
   - "NESTLEIND.NS"
+  - "NHPC.NS"
   - "NMDC.NS"
   - "NTPC.NS"
+  - "NYKAA.NS"
   - "OBEROIRLTY.NS"
+  - "OFSS.NS"
+  - "OIL.NS"
   - "ONGC.NS"
   - "PAGEIND.NS"
+  - "PATANJALI.NS"
+  - "PAYTM.NS"
   - "PERSISTENT.NS"
   - "PETRONET.NS"
   - "PFC.NS"
+  - "PGEL.NS"
+  - "PHOENIXLTD.NS"
   - "PIDILITIND.NS"
   - "PIIND.NS"
   - "PNB.NS"
   - "PNBHOUSING.NS"
+  - "POLICYBZR.NS"
   - "POLYCAB.NS"
   - "POWERGRID.NS"
+  - "POWERINDIA.NS"
+  - "PRESTIGE.NS"
+  - "RADICO.NS"
   - "RBLBANK.NS"
   - "RECLTD.NS"
   - "RELIANCE.NS"
@@ -198,9 +245,11 @@ tickers:
   - "SHREECEM.NS"
   - "SHRIRAMFIN.NS"
   - "SIEMENS.NS"
+  - "SOLARINDS.NS"
   - "SONACOMS.NS"
   - "SRF.NS"
   - "SUNPHARMA.NS"
+  - "SUPREMEIND.NS"
   - "SUZLON.NS"
   - "TATACONSUM.NS"
   - "TATAELXSI.NS"
@@ -217,6 +266,7 @@ tickers:
   - "ULTRACEMCO.NS"
   - "UNIONBANK.NS"
   - "UNITDSPR.NS"
+  - "UNOMINDA.NS"
   - "UPL.NS"
   - "VBL.NS"
   - "VEDL.NS"
@@ -226,6 +276,8 @@ tickers:
   - "ZYDUSLIFE.NS"
 
 sectors:
+  "360ONE.NS": "Financial Services"
+  "ABB.NS": "Capital Goods"
   "ABCAPITAL.NS": "Financial Services"
   "ADANIENSOL.NS": "Power"
   "ADANIENT.NS": "Metals & Mining"
@@ -233,16 +285,20 @@ sectors:
   "ADANIPORTS.NS": "Services"
   "ADANIPOWER.NS": "Power"
   "ALKEM.NS": "Healthcare"
+  "AMBER.NS": "Consumer Durables"
   "AMBUJACEM.NS": "Construction Materials"
   "ANGELONE.NS": "Financial Services"
+  "APLAPOLLO.NS": "Capital Goods"
   "APOLLOHOSP.NS": "Healthcare"
   "ASHOKLEY.NS": "Capital Goods"
   "ASIANPAINT.NS": "Consumer Durables"
+  "ASTRAL.NS": "Capital Goods"
   "AUBANK.NS": "Financial Services"
   "AUROPHARMA.NS": "Healthcare"
   "AXISBANK.NS": "Financial Services"
   "BAJAJ-AUTO.NS": "Automobile and Auto Components"
   "BAJAJFINSV.NS": "Financial Services"
+  "BAJAJHLDNG.NS": "Financial Services"
   "BAJFINANCE.NS": "Financial Services"
   "BANDHANBNK.NS": "Financial Services"
   "BANKBARODA.NS": "Financial Services"
@@ -253,6 +309,7 @@ sectors:
   "BHARTIARTL.NS": "Telecommunication"
   "BHEL.NS": "Capital Goods"
   "BIOCON.NS": "Healthcare"
+  "BLUESTARCO.NS": "Consumer Durables"
   "BOSCHLTD.NS": "Automobile and Auto Components"
   "BPCL.NS": "Oil Gas & Consumable Fuels"
   "BRITANNIA.NS": "Fast Moving Consumer Goods"
@@ -264,6 +321,7 @@ sectors:
   "CHOLAFIN.NS": "Financial Services"
   "CIPLA.NS": "Healthcare"
   "COALINDIA.NS": "Oil Gas & Consumable Fuels"
+  "COCHINSHIP.NS": "Capital Goods"
   "COFORGE.NS": "Information Technology"
   "COLPAL.NS": "Fast Moving Consumer Goods"
   "CONCOR.NS": "Services"
@@ -271,6 +329,7 @@ sectors:
   "CUMMINSIND.NS": "Capital Goods"
   "DABUR.NS": "Fast Moving Consumer Goods"
   "DALBHARAT.NS": "Construction Materials"
+  "DELHIVERY.NS": "Services"
   "DIVISLAB.NS": "Healthcare"
   "DIXON.NS": "Consumer Durables"
   "DLF.NS": "Realty"
@@ -279,13 +338,16 @@ sectors:
   "EICHERMOT.NS": "Automobile and Auto Components"
   "ETERNAL.NS": "Consumer Services"
   "FEDERALBNK.NS": "Financial Services"
+  "FORCEMOT.NS": "Automobile and Auto Components"
   "FORTIS.NS": "Healthcare"
   "GAIL.NS": "Oil Gas & Consumable Fuels"
   "GLENMARK.NS": "Healthcare"
   "GMRAIRPORT.NS": "Services"
+  "GODFRYPHLP.NS": "Fast Moving Consumer Goods"
   "GODREJCP.NS": "Fast Moving Consumer Goods"
   "GODREJPROP.NS": "Realty"
   "GRASIM.NS": "Construction Materials"
+  "GVT&D.NS": "Capital Goods"
   "HAL.NS": "Capital Goods"
   "HAVELLS.NS": "Consumer Durables"
   "HCLTECH.NS": "Information Technology"
@@ -309,6 +371,7 @@ sectors:
   "INDUSINDBK.NS": "Financial Services"
   "INDUSTOWER.NS": "Telecommunication"
   "INFY.NS": "Information Technology"
+  "INOXWIND.NS": "Capital Goods"
   "IOC.NS": "Oil Gas & Consumable Fuels"
   "IRFC.NS": "Financial Services"
   "ITC.NS": "Fast Moving Consumer Goods"
@@ -317,10 +380,14 @@ sectors:
   "JSWSTEEL.NS": "Metals & Mining"
   "JUBLFOOD.NS": "Consumer Services"
   "KALYANKJIL.NS": "Consumer Durables"
+  "KAYNES.NS": "Capital Goods"
+  "KEI.NS": "Capital Goods"
+  "KFINTECH.NS": "Financial Services"
   "KOTAKBANK.NS": "Financial Services"
   "KPITTECH.NS": "Information Technology"
   "LAURUSLABS.NS": "Healthcare"
   "LICHSGFIN.NS": "Financial Services"
+  "LICI.NS": "Financial Services"
   "LODHA.NS": "Realty"
   "LT.NS": "Construction"
   "LTF.NS": "Financial Services"
@@ -335,6 +402,7 @@ sectors:
   "MCX.NS": "Financial Services"
   "MFSL.NS": "Financial Services"
   "MOTHERSON.NS": "Automobile and Auto Components"
+  "MOTILALOFS.NS": "Financial Services"
   "MPHASIS.NS": "Information Technology"
   "MUTHOOTFIN.NS": "Financial Services"
   "NAM-INDIA.NS": "Financial Services"
@@ -342,20 +410,32 @@ sectors:
   "NAUKRI.NS": "Consumer Services"
   "NBCC.NS": "Construction"
   "NESTLEIND.NS": "Fast Moving Consumer Goods"
+  "NHPC.NS": "Power"
   "NMDC.NS": "Metals & Mining"
   "NTPC.NS": "Power"
+  "NYKAA.NS": "Consumer Services"
   "OBEROIRLTY.NS": "Realty"
+  "OFSS.NS": "Information Technology"
+  "OIL.NS": "Oil Gas & Consumable Fuels"
   "ONGC.NS": "Oil Gas & Consumable Fuels"
   "PAGEIND.NS": "Textiles"
+  "PATANJALI.NS": "Fast Moving Consumer Goods"
+  "PAYTM.NS": "Financial Services"
   "PERSISTENT.NS": "Information Technology"
   "PETRONET.NS": "Oil Gas & Consumable Fuels"
   "PFC.NS": "Financial Services"
+  "PGEL.NS": "Consumer Durables"
+  "PHOENIXLTD.NS": "Realty"
   "PIDILITIND.NS": "Chemicals"
   "PIIND.NS": "Chemicals"
   "PNB.NS": "Financial Services"
   "PNBHOUSING.NS": "Financial Services"
+  "POLICYBZR.NS": "Financial Services"
   "POLYCAB.NS": "Capital Goods"
   "POWERGRID.NS": "Power"
+  "POWERINDIA.NS": "Capital Goods"
+  "PRESTIGE.NS": "Realty"
+  "RADICO.NS": "Fast Moving Consumer Goods"
   "RBLBANK.NS": "Financial Services"
   "RECLTD.NS": "Financial Services"
   "RELIANCE.NS": "Oil Gas & Consumable Fuels"
@@ -367,9 +447,11 @@ sectors:
   "SHREECEM.NS": "Construction Materials"
   "SHRIRAMFIN.NS": "Financial Services"
   "SIEMENS.NS": "Capital Goods"
+  "SOLARINDS.NS": "Chemicals"
   "SONACOMS.NS": "Automobile and Auto Components"
   "SRF.NS": "Chemicals"
   "SUNPHARMA.NS": "Healthcare"
+  "SUPREMEIND.NS": "Capital Goods"
   "SUZLON.NS": "Capital Goods"
   "TATACONSUM.NS": "Fast Moving Consumer Goods"
   "TATAELXSI.NS": "Information Technology"
@@ -386,6 +468,7 @@ sectors:
   "ULTRACEMCO.NS": "Construction Materials"
   "UNIONBANK.NS": "Financial Services"
   "UNITDSPR.NS": "Fast Moving Consumer Goods"
+  "UNOMINDA.NS": "Automobile and Auto Components"
   "UPL.NS": "Chemicals"
   "VBL.NS": "Fast Moving Consumer Goods"
   "VEDL.NS": "Metals & Mining"

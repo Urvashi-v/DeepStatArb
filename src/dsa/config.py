@@ -55,6 +55,7 @@ __all__ = [
     "BacktestConfig",
     "ModelsConfig",
     "QualityConfig",
+    "SelectionConfig",
     "load_config",
     "get_config",
     "clear_config_cache",
@@ -197,8 +198,8 @@ class UniverseConfig:
     price_field: str
     benchmark: str
     vix_symbol: str
-    target_size: int
-    min_history_years: int
+    target_size: int | None
+    min_history_years: float
     min_median_turnover_inr: float
     max_missing_frac: float
     tickers: tuple[str, ...]
@@ -209,7 +210,11 @@ class UniverseConfig:
     def __post_init__(self) -> None:
         w = "universe.yaml"
         _check(self.start_date < self.end_date, w, "start_date must precede end_date")
-        _check(self.target_size > 0, w, "target_size must be positive")
+        # target_size mirrors selection.yaml's max_size, which is null when no
+        # cap is applied. It is a RECORD of the rule that produced this list,
+        # not an input --- selection.yaml is authoritative.
+        if self.target_size is not None:
+            _check(self.target_size > 0, w, "target_size must be positive if set")
         _check(self.min_history_years > 0, w, "min_history_years must be positive")
         _check(0.0 <= self.max_missing_frac < 1.0, w, "max_missing_frac must be in [0, 1)")
         _check(
@@ -739,6 +744,70 @@ class ModelsConfig:
 
 
 # ---------------------------------------------------------------------------
+# universe selection rules
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class SelectionConfig:
+    """The rules that produce the research universe (spec Sec 11.4).
+
+    Separate from :class:`UniverseConfig`, which is the *result*. These are the
+    hand-set criteria; that is the generated, frozen list they chose.
+
+    Every point-in-time criterion here is evaluated using only data available
+    on or before the decision date.
+    """
+
+    liquidity_lookback_months: int
+    min_median_turnover_inr: float
+    min_history_years: float
+    max_missing_frac: float
+    min_price_inr: float
+    max_eligible_per_date: int | None
+    max_size: int | None
+    rank_by: str
+    tie_break: str
+    require_sector: bool
+    require_complete_download: bool
+    exclude_quality_fatal: bool
+    require_ever_eligible: bool
+    decision_dates_from: str
+
+    def __post_init__(self) -> None:
+        w = "selection.yaml"
+        _check(self.liquidity_lookback_months >= 1, w, "liquidity_lookback_months must be >= 1")
+        _check(self.min_median_turnover_inr > 0, w, "min_median_turnover_inr must be positive")
+        _check(self.min_history_years > 0, w, "min_history_years must be positive")
+        _check(0 <= self.max_missing_frac < 1, w, "max_missing_frac must be in [0, 1)")
+        _check(self.min_price_inr >= 0, w, "min_price_inr must be >= 0")
+        if self.max_eligible_per_date is not None:
+            _check(
+                self.max_eligible_per_date > 1,
+                w,
+                "max_eligible_per_date must exceed 1 if set",
+            )
+        if self.max_size is not None:
+            _check(self.max_size > 1, w, "max_size must exceed 1 if set")
+        _check(
+            self.rank_by in {"median_turnover_inr", "history_years"},
+            w,
+            "rank_by must be median_turnover_inr or history_years",
+        )
+        _check(self.tie_break == "symbol", w, "tie_break must be 'symbol' (deterministic)")
+        _check(
+            self.decision_dates_from == "backtest_schedule",
+            w,
+            "decision_dates_from must be 'backtest_schedule' so the decision dates cannot "
+            "drift away from the walk-forward windows in backtest.yaml",
+        )
+
+    def lookback_sessions(self, trading_days_per_year: int = 252) -> int:
+        """Trailing window in sessions."""
+        return int(round(self.liquidity_lookback_months / 12.0 * trading_days_per_year))
+
+
+# ---------------------------------------------------------------------------
 # data quality
 # ---------------------------------------------------------------------------
 
@@ -804,6 +873,7 @@ class Config:
     backtest: BacktestConfig
     models: ModelsConfig
     quality: QualityConfig
+    selection: SelectionConfig
     source_dir: Path = field(default_factory=default_config_dir)
 
     # -- serialisation ------------------------------------------------------
@@ -871,6 +941,7 @@ _REQUIRED_FILES = (
     "backtest.yaml",
     "models.yaml",
     "quality.yaml",
+    "selection.yaml",
 )
 
 
@@ -980,6 +1051,7 @@ def load_config(config_path: Path | str | None = None) -> Config:
     )
 
     quality = _build(QualityConfig, raw["quality.yaml"], "quality.yaml")
+    selection = _build(SelectionConfig, raw["selection.yaml"], "selection.yaml")
 
     return Config(
         base=base,
@@ -988,6 +1060,7 @@ def load_config(config_path: Path | str | None = None) -> Config:
         backtest=backtest,
         models=models,
         quality=quality,
+        selection=selection,
         source_dir=cdir,
     )
 

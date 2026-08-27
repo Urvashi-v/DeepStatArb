@@ -1,0 +1,4 @@
+symbol,sector,reasons,history_years,median_turnover_inr,missing_frac,last_price
+IREDA.NS,Financial Services,never_eligible,2.092,1244906171.6560059,0.0,138.62498474121094
+JIOFIN.NS,Financial Services,never_eligible,2.366,3735565689.768402,0.0,295.0091247558594
+MANKIND.NS,Healthcare,never_eligible,2.65,1024639655.2180176,0.0,2164.60009765625

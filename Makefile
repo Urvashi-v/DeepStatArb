@@ -65,7 +65,7 @@ data:
 	$(PY) scripts/build_dataset.py --stage all
 
 universe:
-	$(PY) scripts/build_dataset.py --stage universe
+	$(PY) scripts/build_universe.py
 
 quality:
 	$(PY) scripts/run_quality_report.py --universe-only
